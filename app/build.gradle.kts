@@ -29,7 +29,7 @@ dependencies {
     implementation("com.google.guava:guava:31.1-jre")
     
     // https://mvnrepository.com/artifact/com.jgoodies/jgoodies-forms
-	implementation("com.jgoodies:jgoodies-forms:1.6.0")
+	// implementation("jgoodies:forms:1.0.5")
 	
 	implementation("com.jgoodies:jgoodies-looks:2.5.2")
 	

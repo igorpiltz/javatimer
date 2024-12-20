@@ -22,7 +22,7 @@ import com.jeta.forms.components.panel.FormPanel;
 public class MyTimerFrame extends JFrame {
 	
 	JButton startButton, stopButton, resetButton;
-	private Date startTime;
+	private Date startTime, pauseTime;
 	private TimerThread timer;
 	private JLabel timerLabel;
 	
@@ -73,39 +73,62 @@ public class MyTimerFrame extends JFrame {
 	
 	
 	protected void resetButtonHandler() {
-		timerLabel.setText("00:00:00");
-		if (timer != null) {
-			timer.stopTiming();
-			timer.interrupt();
-			timer = null;
+		if (timer == null) {
+			startTime = null;
+			pauseTime = null;
+			setTimerLabel(0);
 		}
+			
 	}
 
 
 	protected void stopButtonHandler() {
 		
 		if (timer != null) {
-			timer.stopTiming();
+			pauseTime = new Date();
+			timer.stopTimer();
 			timer.interrupt();
+			timer = null;
+			
+			setTimerLabel((pauseTime.getTime() - startTime.getTime())/1000);
 		}
 		
 	}
 
 
 	protected void startButtonHandler() {
-		startTime = new Date();
-		timer = new TimerThread();
-		timer.start();		
+		if (timer != null)
+			return;
+		
+		if ((pauseTime != null) && (startTime != null)) {
+			Date now = new Date();
+			startTime = new Date(now.getTime() - (pauseTime.getTime()-startTime.getTime()));
+			
+			pauseTime = null;
+			timer = new TimerThread();
+			timer.start();
+			
+		} else {
+		
+			startTime = new Date();
+			pauseTime = null;
+			timer = new TimerThread();
+			timer.start();
+		}
 	}
 
 	private class TimerThread extends Thread {
 		
 		private boolean keepTiming = true;
-		
+				
 		public void run() {
-			timerLabel.setText("00:00:00");
+			
 			do {
-								
+				
+				Date now = new Date();
+				long secondDifference =  (now.getTime() - startTime.getTime())/1000;
+				setTimerLabel(secondDifference);
+				
 				try {
 					sleep(1000);
 				} catch (InterruptedException e) {
@@ -113,31 +136,35 @@ public class MyTimerFrame extends JFrame {
 					e.printStackTrace();
 				}
 				
-				Date now = new Date();
-				long secondDifference =  (now.getTime() - startTime.getTime())/1000;
-				
-				long hours = secondDifference/(60*60);
-				if (hours > 0) 
-					secondDifference -= hours*60*60;
-				
-				long minutes = secondDifference/(60);
-				if (minutes > 0) 
-					secondDifference -= minutes*60;
-				
-				
-				timerLabel.setText(
-						leadingZero(hours) + ":"
-						+ leadingZero(minutes) + ":" 
-						+ leadingZero(secondDifference));
-				
 			} while (keepTiming);
 			
 		}
 		
-		public void stopTiming() {
+		public void stopTimer() {
+			
 			keepTiming = false;
 		}
 		
+		
+		
+	}
+	
+	private void setTimerLabel(long seconds) {
+		
+		
+		long hours = seconds/(60*60);
+		if (hours > 0) 
+			seconds -= hours*60*60;
+		
+		long minutes = seconds/(60);
+		if (minutes > 0) 
+			seconds -= minutes*60;
+		
+		
+		timerLabel.setText(
+				leadingZero(hours) + ":"
+				+ leadingZero(minutes) + ":" 
+				+ leadingZero(seconds));
 	}
 	
 
