@@ -22,9 +22,11 @@ import com.jeta.forms.components.panel.FormPanel;
 public class MyTimerFrame extends JFrame {
 	
 	JButton startButton, stopButton, resetButton;
-	private Date startTime, pauseTime;
+	private long timeOffsetMilli;
 	private TimerThread timer;
 	private JLabel timerLabel;
+	private JButton plusTenMinuteButton, plusFiveMinuteButton, plusOneMinuteButton;
+	private JButton countdownButton;
 	
 	public MyTimerFrame() {
 		
@@ -58,12 +60,46 @@ public class MyTimerFrame extends JFrame {
 			}
 		});
 		
+		// Reset Button
 		resetButton = (JButton)panel.getButton("resetButton");
 		resetButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				resetButtonHandler();
 			}
 		});
+		
+		// Plus 10 minute button
+		plusTenMinuteButton = (JButton)panel.getButton("plusTenMinuteButton");
+		plusTenMinuteButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				plusXMinuteButtonHandler(10);
+			}
+		});
+		
+		// Plus 5 minute button
+		plusFiveMinuteButton = (JButton)panel.getButton("plusFiveMinuteButton");
+		plusFiveMinuteButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				plusXMinuteButtonHandler(5);
+			}
+		});
+		
+		// Plus 1 minute button
+		plusOneMinuteButton = (JButton)panel.getButton("plusOneMinuteButton");
+		plusOneMinuteButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				plusXMinuteButtonHandler(1);
+			}
+		});
+		
+		// Countdown button
+		countdownButton = (JButton)panel.getButton("countdownButton");
+		countdownButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				countdownButtonHandler();
+			}
+		});
+		
 		
 		timerLabel = (JLabel)panel.getComponentByName("timerLabel");
 		
@@ -74,9 +110,8 @@ public class MyTimerFrame extends JFrame {
 	
 	protected void resetButtonHandler() {
 		if (timer == null) {
-			startTime = null;
-			pauseTime = null;
-			setTimerLabel(0);
+			timeOffsetMilli = 0;
+			setTimerLabel(timeOffsetMilli);
 		}
 			
 	}
@@ -85,12 +120,15 @@ public class MyTimerFrame extends JFrame {
 	protected void stopButtonHandler() {
 		
 		if (timer != null) {
-			pauseTime = new Date();
+			
+			timeOffsetMilli = timer.getCurrentTimeOffsetMilli();
+			
 			timer.stopTimer();
 			timer.interrupt();
+						
 			timer = null;
 			
-			setTimerLabel((pauseTime.getTime() - startTime.getTime())/1000);
+			setTimerLabel(timeOffsetMilli);
 		}
 		
 	}
@@ -99,45 +137,109 @@ public class MyTimerFrame extends JFrame {
 	protected void startButtonHandler() {
 		if (timer != null)
 			return;
-		
-		if ((pauseTime != null) && (startTime != null)) {
-			Date now = new Date();
-			startTime = new Date(now.getTime() - (pauseTime.getTime()-startTime.getTime()));
 			
-			pauseTime = null;
-			timer = new TimerThread();
-			timer.start();
-			
-		} else {
+		timer = new TimerThread(timeOffsetMilli, TimeDirection.UP);
+		timeOffsetMilli = 0;
+		timer.start();
 		
-			startTime = new Date();
-			pauseTime = null;
-			timer = new TimerThread();
-			timer.start();
-		}
+		
 	}
+	
+	protected void plusXMinuteButtonHandler(int minutes) {
+		if (timer != null)
+			return;
+		
+		timeOffsetMilli += minutes*60*1000;
+		
+		setTimerLabel(timeOffsetMilli);		
+	}
+	
+	protected void countdownButtonHandler() {
+		if (timer != null)
+			return;
+			
+		timer = new TimerThread(timeOffsetMilli, TimeDirection.DOWN);
+		timeOffsetMilli = 0;
+		timer.start();
+		
+	}
+	
+	protected void countDownFinishedHandler() {
+		timer = null;
+		timeOffsetMilli = 0;
+		
+		setTimerLabel(timeOffsetMilli);
+		
+		setAlwaysOnTop(true);
+		toFront();
+		requestFocus();
+		setAlwaysOnTop(false);
+	}
+	
+	
+	public enum TimeDirection {UP, DOWN}
 
 	private class TimerThread extends Thread {
 		
 		private boolean keepTiming = true;
-				
+		
+		private long timeOffsetMilli;
+		
+		private long currentTimeOffsetMilli;	// latest value calculated
+		
+		private TimeDirection direction;
+		
+		private Date startTime;
+		
+		public TimerThread(long timeOffsetMilli, TimeDirection direction) {
+			this.timeOffsetMilli = timeOffsetMilli;
+			this.direction = direction;
+			
+			startTime = new Date();
+		}
+		
 		public void run() {
 			
 			do {
 				
-				Date now = new Date();
-				long secondDifference =  (now.getTime() - startTime.getTime())/1000;
-				setTimerLabel(secondDifference);
+				long cto = getCurrentTimeOffsetMilli();
+				System.out.print("Wake: " + cto + "\n");
 				
+				if (cto < 0) {
+					countDownFinishedHandler();
+					break;
+				}
+															  
+				setTimerLabel(cto);
+					
 				try {
-					sleep(1000);
+					long sleepTime;
+					if (direction == TimeDirection.UP)
+						 sleepTime = 1000 - cto%1000;
+					else sleepTime = cto%1000;
+					
+					if (sleepTime < 1)
+						sleepTime = 1000;
+					
+					sleep(sleepTime);
+					
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				
 			} while (keepTiming);
 			
+		}
+		
+		public long getCurrentTimeOffsetMilli() {
+			Date now = new Date();
+			if (direction == TimeDirection.UP) {
+				return now.getTime() - startTime.getTime() + timeOffsetMilli;
+			} else {
+				// TimeDirection.DOWN
+				return timeOffsetMilli - (now.getTime() - startTime.getTime()); 
+				
+			}
 		}
 		
 		public void stopTimer() {
@@ -149,8 +251,9 @@ public class MyTimerFrame extends JFrame {
 		
 	}
 	
-	private void setTimerLabel(long seconds) {
+	private void setTimerLabel(long milliSeconds) {
 		
+		long seconds = milliSeconds/1000;
 		
 		long hours = seconds/(60*60);
 		if (hours > 0) 
